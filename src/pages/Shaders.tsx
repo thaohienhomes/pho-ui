@@ -508,6 +508,298 @@ void main(){
 ]
 
 /* ═══════════════════════════════════════════════════════════
+   6 Vietnamese Folk-Themed Fragment Shaders
+   ═══════════════════════════════════════════════════════════ */
+
+const folkShaders: { id: string; vi: string; en: string; desc: string; frag: string }[] = [
+
+  /* ─── 1. Sen Nở ─── */
+  {
+    id: 'sen-no',
+    vi: 'Sen Nở',
+    en: 'Lotus Bloom',
+    desc: 'Top-down lotus bloom with radial petal layers expanding outward. Jade glow pulses with breathing rhythm.',
+    frag: `
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*u_resolution)/min(u_resolution.x,u_resolution.y);
+  float r=length(uv);
+  float a=atan(uv.y,uv.x);
+  float t=u_time*.15;
+  float bloom=.5+.5*sin(t);
+
+  // 3 petal layers blooming outward (6, 8, 10 petals)
+  float petals=0.;
+  for(int i=0;i<3;i++){
+    float fi=float(i);
+    float n=6.+fi*2.;
+    float offset=fi*PI/12.;
+    float petalR=(.1+fi*.08)*(.6+.4*bloom);
+    float shape=pow(abs(cos(a*n*.5+offset+t*.3)),1.5)*petalR;
+    float base=.08+fi*.06;
+    float petal=1.-smoothstep(.0,.015,abs(r-shape-base));
+    petal+=smoothstep(shape+base,shape*.3,r)*.15;
+    petals+=petal*(.8-fi*.2);
+  }
+
+  float glow=exp(-r*6.)*(1.+.3*bloom);
+  float rays=pow(.5+.5*sin(a*12.+t*2.),8.)*exp(-r*3.)*.3;
+
+  vec3 col=BG;
+  col+=JADE*petals*.7;
+  col+=JADE*glow*.5;
+  col+=JADE*rays;
+  col+=mix(JADE,GOLD,.5)*exp(-r*12.)*.4;
+
+  gl_FragColor=vec4(col,1.);
+}`,
+  },
+
+  /* ─── 2. Trúc Lâm ─── */
+  {
+    id: 'truc-lam',
+    vi: 'Trúc Lâm',
+    en: 'Bamboo Grove',
+    desc: 'Vertical bamboo stalks swaying in wind. Nodes, leaves, and layered depth in jade silhouettes.',
+    frag: `
+float bhash(float p){
+  return fract(sin(p*127.1)*43758.5453);
+}
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*u_resolution)/min(u_resolution.x,u_resolution.y);
+  float t=u_time*.3;
+
+  float bamboo=0.;
+  for(int i=0;i<12;i++){
+    float fi=float(i);
+    float x=-.55+fi*.1+bhash(fi)*.03;
+    float wind=sin(t+fi*.7)*.015+sin(t*1.3+fi*.5)*.008;
+    float sway=wind*(uv.y+.5);
+
+    // Stalk
+    float stalk=smoothstep(.008,.002,abs(uv.x-x-sway));
+    stalk*=smoothstep(-.5,-.45,uv.y);
+
+    // Nodes
+    float nodeY=mod(uv.y+bhash(fi+10.)*.1+.5,.15)-.075;
+    float node=smoothstep(.012,.004,abs(uv.x-x-sway))
+              *smoothstep(.008,.002,abs(nodeY))
+              *step(-.45,uv.y);
+
+    // Leaves at nodes
+    float leafY=floor((uv.y+.5)/.15)*.15-.5+bhash(fi+20.)*.1;
+    vec2 lp=vec2(uv.x-x-sway,uv.y-leafY);
+    float side=sign(bhash(fi+30.)-.5);
+    float leaf=smoothstep(.003,.001,abs(lp.y-lp.x*side*2.))
+              *smoothstep(.08,.0,abs(lp.x))
+              *step(0.,lp.x*side);
+
+    float depth=.5+.5*bhash(fi+5.);
+    bamboo+=(stalk+node*1.5+leaf*.6)*depth;
+  }
+
+  float fog=exp(-abs(uv.y-.2)*3.)*.08;
+
+  vec3 col=BG;
+  col+=JADE*bamboo*.6;
+  col+=JADE*fog;
+
+  gl_FragColor=vec4(col,1.);
+}`,
+  },
+
+  /* ─── 3. Hơi Sương ─── */
+  {
+    id: 'hoi-suong',
+    vi: 'Hơi Sương',
+    en: 'Jade Mist',
+    desc: 'Layered mountain fog breathing slowly. FBM noise mist drifting across jade ridgelines.',
+    frag: `
+float mhash(vec2 p){
+  return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);
+}
+float mnoise(vec2 p){
+  vec2 i=floor(p);vec2 f=fract(p);
+  f=f*f*(3.-2.*f);
+  float a=mhash(i);float b=mhash(i+vec2(1.,0.));
+  float c=mhash(i+vec2(0.,1.));float d=mhash(i+vec2(1.,1.));
+  return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);
+}
+float fbm(vec2 p){
+  float v=0.;float a=.5;
+  for(int i=0;i<5;i++){v+=a*mnoise(p);p*=2.;a*=.5;}
+  return v;
+}
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*u_resolution)/min(u_resolution.x,u_resolution.y);
+  float t=u_time*.06;
+  float breath=.5+.5*sin(t*2.5);
+
+  float mist=0.;
+  mist+=fbm(uv*3.+vec2(t,0.))*.4;
+  mist+=fbm(uv*5.+vec2(-t*.7,.3))*.25;
+  mist+=fbm(uv*8.+vec2(t*.5,t*.3))*.15;
+  mist*=.6+.4*breath;
+  mist*=smoothstep(.5,-.3,uv.y);
+
+  // Mountain ridge silhouettes
+  float ridge1=smoothstep(.0,.08,uv.y-(.05+fbm(vec2(uv.x*2.+1.,t*.2))*.15-.1));
+  float ridge2=smoothstep(.0,.06,uv.y-(-.05+fbm(vec2(uv.x*2.5+5.,t*.15))*.12-.05));
+  mist+=ridge1*.06+ridge2*.04;
+
+  vec3 col=BG;
+  col+=JADE*mist;
+  col+=JADE*exp(-length(uv)*2.)*.05*breath;
+
+  gl_FragColor=vec4(col,1.);
+}`,
+  },
+
+  /* ─── 4. Sóng Nước ─── */
+  {
+    id: 'song-nuoc',
+    vi: 'Sóng Nước',
+    en: 'Water Ripples',
+    desc: 'Three ripple sources interfering to form caustic patterns. Concentric waves in jade on still water.',
+    frag: `
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*u_resolution)/min(u_resolution.x,u_resolution.y);
+  float t=u_time*.4;
+
+  float wave=0.;
+
+  vec2 c1=vec2(-.2,.05);
+  float d1=length(uv-c1);
+  wave+=sin(d1*40.-t*3.)*.5*exp(-d1*2.5);
+
+  vec2 c2=vec2(.15,-.1);
+  float d2=length(uv-c2);
+  wave+=sin(d2*35.-t*2.5+1.)*.4*exp(-d2*2.8);
+
+  vec2 c3=vec2(.0,.2);
+  float d3=length(uv-c3);
+  wave+=sin(d3*45.-t*2.8+2.)*.3*exp(-d3*3.);
+
+  // Caustic interference
+  float caustic=wave*wave;
+
+  float surface=sin(uv.x*10.+sin(uv.y*8.+t)*.5+t*.5)
+               *sin(uv.y*10.+sin(uv.x*8.+t*.7)*.5)*.05;
+
+  float vig=1.-smoothstep(.3,.6,length(uv));
+
+  vec3 col=BG;
+  col+=JADE*caustic*1.2*vig;
+  col+=JADE*(.5+.5*wave)*.15*vig;
+  col+=JADE*surface;
+  col+=JADE*exp(-length(uv)*3.)*.08;
+
+  gl_FragColor=vec4(col,1.);
+}`,
+  },
+
+  /* ─── 5. Đèn Lồng ─── */
+  {
+    id: 'den-long',
+    vi: 'Đèn Lồng',
+    en: 'Floating Lanterns',
+    desc: 'Bokeh lantern orbs floating upward with warm flicker. Jade-gold glow drifting through the night.',
+    frag: `
+float lhash(vec2 p){
+  return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);
+}
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*u_resolution)/min(u_resolution.x,u_resolution.y);
+  float t=u_time*.2;
+
+  vec3 lanternCol=vec3(0.);
+
+  for(int i=0;i<15;i++){
+    float fi=float(i);
+    float h1=lhash(vec2(fi,0.));
+    float h2=lhash(vec2(fi,1.));
+    float h3=lhash(vec2(fi,2.));
+
+    float x=h1*1.4-.7+sin(t*(.5+h3)+fi)*.04;
+    float y=mod(h2*1.2-.6+t*(.05+h3*.08),1.4)-.7;
+
+    vec2 lp=uv-vec2(x,y);
+    float d=length(lp);
+    float size=.03+h3*.04;
+    float flicker=.7+.3*sin(t*(8.+fi*2.)+fi*5.);
+
+    float orb=exp(-d*d/(size*size*2.))*flicker;
+    vec3 lCol=mix(JADE,GOLD,h2*.6+.2);
+    lanternCol+=lCol*orb;
+  }
+
+  vec3 col=BG;
+  col+=lanternCol*.8;
+
+  gl_FragColor=vec4(col,1.);
+}`,
+  },
+
+  /* ─── 6. Hoạ Tiết Dân Gian ─── */
+  {
+    id: 'hoa-tiet-dan-gian',
+    vi: 'Hoạ Tiết Dân Gian',
+    en: 'Folk Tessellation',
+    desc: 'Rotating geometric tessellation — diamond, cross, and ring motifs from Vietnamese folk patterns.',
+    frag: `
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*u_resolution)/min(u_resolution.x,u_resolution.y);
+  float t=u_time*.15;
+
+  float ca=cos(t);float sa=sin(t);
+  vec2 ruv=mat2(ca,-sa,sa,ca)*uv;
+
+  vec2 hex=ruv*6.;
+  vec2 local=fract(hex)-.5;
+
+  float pattern=0.;
+
+  // Diamond motif
+  float diamond=abs(local.x)+abs(local.y);
+  pattern+=1.-smoothstep(.28,.3,diamond);
+  pattern-=1.-smoothstep(.2,.22,diamond);
+
+  // Inner cross
+  float cross2=min(abs(local.x),abs(local.y));
+  pattern+=smoothstep(.03,.01,cross2)*smoothstep(.22,.15,diamond);
+
+  // Corner dots
+  for(int i=0;i<4;i++){
+    float fi=float(i);
+    float ax=PI*.5*fi+PI*.25;
+    vec2 dp=vec2(cos(ax),sin(ax))*.2;
+    pattern+=smoothstep(.04,.02,length(local-dp));
+  }
+
+  // Rotating dashed ring
+  float r=length(local);
+  float a=atan(local.y,local.x);
+  float ring=1.-smoothstep(.0,.012,abs(r-.35));
+  float ringDash=step(.5,fract(a*4./TAU+t*.5));
+  pattern+=ring*ringDash*.5;
+
+  // Cell frame
+  float frame=smoothstep(.012,.004,abs(abs(local.x)-.5));
+  frame+=smoothstep(.012,.004,abs(abs(local.y)-.5));
+  pattern+=frame*.3;
+
+  float vig=1.-smoothstep(.3,.55,length(uv));
+  pattern*=vig;
+
+  vec3 col=BG;
+  col+=JADE*clamp(pattern,0.,1.)*.7;
+  col+=GOLD*smoothstep(.8,1.,pattern)*.3;
+
+  gl_FragColor=vec4(col,1.);
+}`,
+  },
+]
+
+/* ═══════════════════════════════════════════════════════════
    Shaders Page
    ═══════════════════════════════════════════════════════════ */
 
@@ -516,17 +808,36 @@ export default function Shaders() {
     <div>
       <PageHeader
         title="Shaders"
-        description="Buddhist-themed GLSL fragment shaders. Sacred geometry, meditation, and impermanence — rendered in jade and gold on dark."
+        description="GLSL fragment shaders — 8 Buddhist-themed (sacred geometry, meditation, impermanence) and 6 Vietnamese folk-themed (lotus, bamboo, mist, water, lanterns, tessellation). Jade and gold on dark."
       />
 
       <div className="space-y-12">
+        <h2 className="text-[var(--font-size-xl)] font-semibold text-[var(--text-primary)] border-b border-[var(--border-default)] pb-2">
+          Phật Giáo <span className="ml-2 text-sm font-normal text-[var(--text-muted)]">Buddhist</span>
+        </h2>
         {shaders.map((s) => (
           <section key={s.id}>
             <div className="mb-4">
-              <h2 className="text-[var(--font-size-lg)] font-semibold text-[var(--text-primary)]">
+              <h3 className="text-[var(--font-size-lg)] font-semibold text-[var(--text-primary)]">
                 {s.vi}
                 <span className="ml-2 text-sm font-normal text-[var(--text-muted)]">{s.en}</span>
-              </h2>
+              </h3>
+              <p className="text-sm text-[var(--text-secondary)] mt-1">{s.desc}</p>
+            </div>
+            <ShaderCanvas frag={s.frag} />
+          </section>
+        ))}
+
+        <h2 className="text-[var(--font-size-xl)] font-semibold text-[var(--text-primary)] border-b border-[var(--border-default)] pb-2 mt-16">
+          Dân Gian <span className="ml-2 text-sm font-normal text-[var(--text-muted)]">Folk</span>
+        </h2>
+        {folkShaders.map((s) => (
+          <section key={s.id}>
+            <div className="mb-4">
+              <h3 className="text-[var(--font-size-lg)] font-semibold text-[var(--text-primary)]">
+                {s.vi}
+                <span className="ml-2 text-sm font-normal text-[var(--text-muted)]">{s.en}</span>
+              </h3>
               <p className="text-sm text-[var(--text-secondary)] mt-1">{s.desc}</p>
             </div>
             <ShaderCanvas frag={s.frag} />
