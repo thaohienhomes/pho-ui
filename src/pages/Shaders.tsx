@@ -1354,6 +1354,469 @@ void main(){
 ]
 
 /* ═══════════════════════════════════════════════════════════
+   6 Nguồn Cội Âu Lạc — Ancient Vietnamese Origin Shaders
+   Colors: Bronze #b87333 · Gold #b8860b · Jade #059669
+           Patina #2e8b57 · Dark #060806
+   ═══════════════════════════════════════════════════════════ */
+
+const nguonCoiShaders: { id: string; vi: string; en: string; desc: string; frag: string }[] = [
+
+  /* ─── 1. Trống Đồng Đông Sơn ─── */
+  {
+    id: 'trong-dong',
+    vi: 'Trống Đồng Đông Sơn',
+    en: 'Dong Son Bronze Drum',
+    desc: 'Top-down view of a Dong Son bronze drum: central 14-ray star, concentric rings with geometric bird, deer, and human motifs, zigzag outer rim. Slowly rotating bronze and patina on dark.',
+    frag: `
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*u_resolution)/min(u_resolution.x,u_resolution.y);
+  float t=u_time*.08;
+
+  // Rotate slowly
+  float ca=cos(t),sa=sin(t);
+  uv=mat2(ca,-sa,sa,ca)*uv;
+
+  float r=length(uv);
+  float a=atan(uv.y,uv.x);
+
+  vec3 BRONZE=vec3(.722,.451,.2);
+  vec3 GOLDS=vec3(.722,.525,.043);
+  vec3 PATINA=vec3(.18,.545,.341);
+
+  float m=0.;
+
+  // Central star — 14 rays
+  float star=pow(abs(cos(a*7.)),3.)*.15+.04;
+  float starShape=1.-smoothstep(0.,.012,abs(r-star));
+  // Solid star fill
+  starShape+=smoothstep(star,.0,r)*.9;
+  m+=starShape;
+
+  // Central disc
+  m+=(1.-smoothstep(.0,.008,abs(r-.02)))*1.2;
+
+  // Concentric rings
+  float ring1=(1.-smoothstep(.0,.006,abs(r-.18)))*.7;
+  float ring2=(1.-smoothstep(.0,.006,abs(r-.28)))*.7;
+  float ring3=(1.-smoothstep(.0,.006,abs(r-.38)))*.7;
+  float ring4=(1.-smoothstep(.0,.008,abs(r-.46)))*.8;
+  m+=ring1+ring2+ring3+ring4;
+
+  // Ring 1 zone (.18-.28): Chim Lac (birds) — simplified triangular shapes
+  if(r>.18&&r<.28){
+    float ba=mod(a+PI,TAU/8.)/(TAU/8.);
+    float birdBody=smoothstep(.04,.02,abs(ba-.5))*smoothstep(.28,.23,r)*smoothstep(.18,.22,r);
+    // Wings as chevrons
+    float wing=smoothstep(.06,.03,abs(ba-.3))*smoothstep(.06,.03,abs(ba-.7));
+    wing*=smoothstep(.28,.24,r)*smoothstep(.18,.21,r);
+    m+=(birdBody+wing*.5)*.5;
+  }
+
+  // Ring 2 zone (.28-.38): Deer/Human — geometric silhouettes
+  if(r>.28&&r<.38){
+    float sa2=mod(a,TAU/6.)/(TAU/6.);
+    // Simple geometric figure — diamond body + line legs
+    float fig=smoothstep(.04,.015,abs(sa2-.5))*smoothstep(.38,.34,r)*smoothstep(.28,.31,r);
+    // Antler/arm lines
+    float detail=smoothstep(.02,.005,abs(sa2-.35))*smoothstep(.35,.33,r)*smoothstep(.31,.32,r);
+    detail+=smoothstep(.02,.005,abs(sa2-.65))*smoothstep(.35,.33,r)*smoothstep(.31,.32,r);
+    m+=(fig+detail)*.4;
+  }
+
+  // Ring 3 zone (.38-.46): Meander S-pattern
+  if(r>.38&&r<.46){
+    float band=sin(a*16.+sin(a*8.)*2.)*.5+.5;
+    band*=smoothstep(.38,.39,r)*smoothstep(.46,.45,r);
+    m+=band*.3;
+  }
+
+  // Outer zigzag rim
+  float zigzag=abs(mod(a*18./TAU,1.)-.5)*2.;
+  float rimR=.48+zigzag*.03;
+  float rim=(1.-smoothstep(.0,.012,abs(r-rimR)))*smoothstep(.46,.47,r);
+  m+=rim*.8;
+
+  // Outer circle
+  m+=(1.-smoothstep(.0,.006,abs(r-.52)))*.6;
+
+  // Fill between rings — faint geometric texture
+  float tex=sin(a*24.)*sin(r*80.)*.5+.5;
+  tex*=smoothstep(.52,.05,r)*smoothstep(.02,.08,r);
+  m+=tex*.06;
+
+  // Color: bronze core, gold mid, patina outer
+  vec3 col=mix(GOLDS,BRONZE,smoothstep(.15,.35,r));
+  col=mix(col,PATINA,smoothstep(.35,.52,r)*.4);
+  col=mix(BG,col,clamp(m,0.,1.));
+
+  // Center glow
+  col+=GOLDS*exp(-r*12.)*.3;
+
+  gl_FragColor=vec4(col,1.);
+}`,
+  },
+
+  /* ─── 2. Chim Lạc ─── */
+  {
+    id: 'chim-lac',
+    vi: 'Chim Lạc',
+    en: 'Lac Bird',
+    desc: 'Flock of 8 Lac birds (geometric Dong Son style) flying in circle around a radiant sun. Wings flap with sine oscillation. Bronze and gold on dark.',
+    frag: `
+float birdSDF(vec2 p,float flap){
+  // Geometric Lac bird: elongated body, spread wings, curved tail
+  float body=length(p*vec2(1.,3.))-.03;
+  // Wings — wide chevron shape, flapping
+  vec2 wp=abs(vec2(p.x,p.y));
+  float wingY=wp.y*6.-wp.x*(.8+.3*flap);
+  float wing=length(vec2(max(wp.x-.06,0.),wingY))-.015;
+  wing=mix(wing,1.,step(.12,wp.x));
+  // Tail — curved back
+  float tail=length(vec2(p.x+.04,p.y*4.-.02))-.012;
+  tail=mix(tail,1.,step(0.,p.x));
+  return min(body,min(wing,tail));
+}
+
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*u_resolution)/min(u_resolution.x,u_resolution.y);
+  float t=u_time*.2;
+
+  vec3 BRONZE=vec3(.722,.451,.2);
+  vec3 GOLDS=vec3(.722,.525,.043);
+
+  float m=0.;
+
+  // Central sun with rays
+  float sr=length(uv);
+  float sa=atan(uv.y,uv.x);
+  float sun=exp(-sr*8.);
+  float rays=pow(.5+.5*sin(sa*12.+t*1.5),6.)*exp(-sr*4.)*.5;
+  m+=sun+rays;
+
+  // 8 birds flying in circle
+  for(int i=0;i<8;i++){
+    float fi=float(i);
+    float angle=fi*TAU/8.+t*.6;
+    float orbitR=.28+.02*sin(t+fi);
+    vec2 center=vec2(cos(angle),sin(angle))*orbitR;
+
+    // Rotate bird to face flight direction (tangent)
+    float fa=angle+PI*.5;
+    float fc=cos(fa),fs=sin(fa);
+    vec2 lp=mat2(fc,fs,-fs,fc)*(uv-center);
+
+    float flap=sin(t*4.+fi*1.5);
+    float d=birdSDF(lp,flap);
+    m+=smoothstep(.008,0.,d)*.7;
+  }
+
+  // Sun ring
+  m+=(1.-smoothstep(.0,.008,abs(sr-.08)))*.5;
+
+  vec3 col=mix(BRONZE,GOLDS,sr*2.);
+  col=mix(BG,col,clamp(m,0.,1.));
+  col+=GOLDS*sun*.4;
+
+  gl_FragColor=vec4(col,1.);
+}`,
+  },
+
+  /* ─── 3. Hoa Văn Đông Sơn ─── */
+  {
+    id: 'hoa-van-dong-son',
+    vi: 'Hoa Văn Đông Sơn',
+    en: 'Dong Son Patterns',
+    desc: 'Endless horizontal scrolling bands of Dong Son motifs: zigzag, spirals, meander S-curves, and nested diamonds. Bronze with jade accents.',
+    frag: `
+void main(){
+  vec2 uv=gl_FragCoord.xy/u_resolution;
+  float aspect=u_resolution.x/u_resolution.y;
+  uv.x*=aspect;
+  float t=u_time*.12;
+
+  vec3 BRONZE=vec3(.722,.451,.2);
+  vec3 GOLDS=vec3(.722,.525,.043);
+  vec3 JADEA=vec3(.02,.588,.412);
+
+  float m=0.;
+
+  // Band 1 (top): Zigzag / răng cưa — y ∈ [0.78, 0.92]
+  {
+    float by=smoothstep(.78,.80,uv.y)*smoothstep(.92,.90,uv.y);
+    float zy=uv.y-.85;
+    float zx=uv.x*8.+t*2.;
+    float zigzag=abs(mod(zx,2.)-1.)*.06;
+    float zline=(1.-smoothstep(.0,.004,abs(zy-zigzag)))+(1.-smoothstep(.0,.004,abs(zy+zigzag)));
+    // Border lines
+    zline+=(1.-smoothstep(.0,.003,abs(uv.y-.79)))+(1.-smoothstep(.0,.003,abs(uv.y-.91)));
+    m+=zline*by;
+  }
+
+  // Band 2: Spirals / xoắn ốc — y ∈ [0.55, 0.72]
+  {
+    float by=smoothstep(.55,.57,uv.y)*smoothstep(.72,.70,uv.y);
+    float sx=mod(uv.x*3.+t*1.5,1.)-.5;
+    float sy=(uv.y-.635)/.085;
+    float sr=length(vec2(sx,sy));
+    float sa=atan(sy,sx);
+    float spiral=sin(sa*2.-sr*16.+t*3.)*.5+.5;
+    spiral*=smoothstep(.6,.1,sr);
+    // Border lines
+    float blines=(1.-smoothstep(.0,.003,abs(uv.y-.56)))+(1.-smoothstep(.0,.003,abs(uv.y-.71)));
+    m+=(spiral*.6+blines)*by;
+  }
+
+  // Band 3: Meander / chữ S — y ∈ [0.32, 0.49]
+  {
+    float by=smoothstep(.32,.34,uv.y)*smoothstep(.49,.47,uv.y);
+    float mx=uv.x*6.+t*2.;
+    float my=(uv.y-.405)/.075;
+    float meander=sin(mx)*sin(my*PI)*.5+.5;
+    float sLine=smoothstep(.12,.0,abs(sin(mx+sin(my*2.)*1.5))-.3);
+    // Border lines
+    float blines=(1.-smoothstep(.0,.003,abs(uv.y-.33)))+(1.-smoothstep(.0,.003,abs(uv.y-.48)));
+    m+=(sLine*.5+meander*.2+blines)*by;
+  }
+
+  // Band 4 (bottom): Nested diamonds / hình thoi — y ∈ [0.08, 0.26]
+  {
+    float by=smoothstep(.08,.10,uv.y)*smoothstep(.26,.24,uv.y);
+    float dx=mod(uv.x*4.+t,1.)-.5;
+    float dy=(uv.y-.17)/.08;
+    float diamond=abs(dx)+abs(dy);
+    float dShape=(1.-smoothstep(.0,.02,abs(diamond-.5)))+(1.-smoothstep(.0,.02,abs(diamond-.3)))+(1.-smoothstep(.0,.02,abs(diamond-.7)));
+    // Border lines
+    float blines=(1.-smoothstep(.0,.003,abs(uv.y-.09)))+(1.-smoothstep(.0,.003,abs(uv.y-.25)));
+    m+=(dShape*.5+blines)*by;
+  }
+
+  // Color: bronze base, jade accent on spirals
+  float jadeZone=smoothstep(.55,.635,uv.y)*smoothstep(.72,.635,uv.y);
+  vec3 col=mix(BRONZE,JADEA,jadeZone*.3);
+  col=mix(col,GOLDS,.15);
+  col=mix(BG,col,clamp(m,0.,1.));
+
+  gl_FragColor=vec4(col,1.);
+}`,
+  },
+
+  /* ─── 4. Rồng Tiên ─── */
+  {
+    id: 'rong-tien',
+    vi: 'Rồng Tiên',
+    en: 'Dragon & Fairy',
+    desc: 'Lac Long Quan (dragon from sea, blue) and Au Co (fairy from mountain, green) — two parametric curves intertwining, meeting at golden center symbolizing the hundred-egg bundle.',
+    frag: `
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*u_resolution)/min(u_resolution.x,u_resolution.y);
+  float t=u_time*.15;
+
+  vec3 SEA=vec3(.1,.35,.65);
+  vec3 MTN=vec3(.1,.55,.3);
+  vec3 GOLDS=vec3(.722,.525,.043);
+  vec3 BRONZE=vec3(.722,.451,.2);
+
+  float m=0.;
+  vec3 col=BG;
+
+  // Two intertwining parametric curves (dragon & fairy)
+  float dragon=1e9,fairy=1e9;
+  for(int i=0;i<80;i++){
+    float fi=float(i)/80.;
+    float s=fi*TAU;
+
+    // Dragon curve — from bottom-left, spiraling to center
+    vec2 dp=vec2(
+      (.5-fi)*.9*cos(s*2.+t)+sin(s*1.5+t)*.12,
+      (.5-fi)*.9*sin(s*2.+t)-.15+fi*.3
+    );
+    dragon=min(dragon,length(uv-dp));
+
+    // Fairy curve — from top-right, spiraling to center
+    vec2 fp=vec2(
+      (fi-.5)*.9*cos(s*2.-t*.8)-sin(s*1.5-t)*.12,
+      (fi-.5)*.9*sin(s*2.-t*.8)+.15-fi*.3
+    );
+    fairy=min(fairy,length(uv-fp));
+  }
+
+  // Dragon trail (sea blue)
+  float dGlow=exp(-dragon*60.)*.8+exp(-dragon*20.)*.3;
+  col+=SEA*dGlow;
+  m+=dGlow;
+
+  // Fairy trail (mountain green)
+  float fGlow=exp(-fairy*60.)*.8+exp(-fairy*20.)*.3;
+  col+=MTN*fGlow;
+  m+=fGlow;
+
+  // Center convergence — golden burst (hundred eggs)
+  float cr=length(uv);
+  float centerGlow=exp(-cr*8.);
+  float pulse=.7+.3*sin(t*2.);
+  col+=GOLDS*centerGlow*pulse;
+
+  // Radiating particles around center — tiny egg-like dots
+  float ca=atan(uv.y,uv.x);
+  float eggs=pow(.5+.5*sin(ca*16.+t*3.),12.)*exp(-cr*6.)*.4;
+  col+=BRONZE*eggs;
+
+  // Background ambiance
+  col+=BG*(1.-clamp(m,0.,1.));
+
+  gl_FragColor=vec4(col,1.);
+}`,
+  },
+
+  /* ─── 5. Bọc Trăm Trứng ─── */
+  {
+    id: 'tram-trung',
+    vi: 'Bọc Trăm Trứng',
+    en: 'Hundred Eggs',
+    desc: '100 glowing particles drift from golden center — 50 rise toward mountains (green), 50 descend toward sea (blue). Symbolizes the origin of the Viet people.',
+    frag: `
+float hash(float n){return fract(sin(n)*43758.5453);}
+
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*u_resolution)/min(u_resolution.x,u_resolution.y);
+  float t=u_time*.1;
+
+  vec3 GOLDS=vec3(.722,.525,.043);
+  vec3 MTN=vec3(.15,.6,.3);
+  vec3 SEA=vec3(.1,.35,.65);
+
+  vec3 col=BG;
+
+  // Central golden glow — the egg sac
+  float cr=length(uv);
+  float pulse=.7+.3*sin(t*3.);
+  col+=GOLDS*exp(-cr*10.)*pulse;
+  col+=GOLDS*exp(-cr*4.)*.2;
+
+  // 50 particles going up (mountain children)
+  for(int i=0;i<50;i++){
+    float fi=float(i);
+    float h1=hash(fi*1.17);
+    float h2=hash(fi*2.31);
+    float h3=hash(fi*3.47);
+
+    float life=mod(t+h1*6.,6.)/6.; // 0→1 cycle
+    float spread=(h2-.5)*.7;
+    float px=spread*life+sin(life*4.+h3*TAU)*.04;
+    float py=life*.55+.02;
+    vec2 pp=vec2(px,py);
+
+    float d=length(uv-pp);
+    float fade=sin(life*PI); // fade in/out
+    float glow=exp(-d*120.)*fade*.6+exp(-d*40.)*fade*.2;
+    col+=MTN*glow;
+  }
+
+  // 50 particles going down (sea children)
+  for(int i=0;i<50;i++){
+    float fi=float(i);
+    float h1=hash(fi*4.63);
+    float h2=hash(fi*5.79);
+    float h3=hash(fi*6.91);
+
+    float life=mod(t+h1*6.,6.)/6.;
+    float spread=(h2-.5)*.7;
+    float px=spread*life+sin(life*4.+h3*TAU)*.04;
+    float py=-life*.55-.02;
+    vec2 pp=vec2(px,py);
+
+    float d=length(uv-pp);
+    float fade=sin(life*PI);
+    float glow=exp(-d*120.)*fade*.6+exp(-d*40.)*fade*.2;
+    col+=SEA*glow;
+  }
+
+  // Subtle dividing line at center
+  col+=GOLDS*(1.-smoothstep(.0,.004,abs(uv.y)))*exp(-abs(uv.x)*4.)*.3;
+
+  gl_FragColor=vec4(col,1.);
+}`,
+  },
+
+  /* ─── 6. Nỏ Thần An Dương Vương ─── */
+  {
+    id: 'no-than',
+    vi: 'Nỏ Thần An Dương Vương',
+    en: 'Divine Crossbow',
+    desc: 'Golden arrows shooting outward in spiral pattern from center, leaving bright trails. Co Loa citadel spiral in background. Bronze and gold.',
+    frag: `
+float hash(float n){return fract(sin(n)*43758.5453);}
+
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*u_resolution)/min(u_resolution.x,u_resolution.y);
+  float t=u_time*.2;
+
+  vec3 BRONZE=vec3(.722,.451,.2);
+  vec3 GOLDS=vec3(.722,.525,.043);
+
+  float r=length(uv);
+  float a=atan(uv.y,uv.x);
+  vec3 col=BG;
+
+  // Background: Co Loa citadel spiral (irregular concentric spiral)
+  float spiralA=a+r*18.-t*.5;
+  float spiralLine=sin(spiralA*3.)*.5+.5;
+  spiralLine=pow(spiralLine,.3);
+  float spiralMask=smoothstep(.5,.15,r)*smoothstep(.05,.1,r);
+  col+=BRONZE*spiralLine*spiralMask*.08;
+
+  // Concentric irregular rings (citadel walls)
+  for(int i=1;i<5;i++){
+    float ri=float(i)*.1+.05;
+    float wobble=sin(a*3.+float(i)*1.5)*.01;
+    float ring=(1.-smoothstep(.0,.008,abs(r-ri-wobble)));
+    col+=BRONZE*ring*.12;
+  }
+
+  // Arrows shooting outward in spiral bursts
+  for(int i=0;i<16;i++){
+    float fi=float(i);
+    float h1=hash(fi*1.23);
+    float h2=hash(fi*2.45);
+
+    float arrowAngle=fi*TAU/16.+t*.8+h1;
+    float speed=mod(t*1.5+h2*3.,3.)/3.; // 0→1 cycle
+    float arrowR=speed*.55;
+
+    vec2 arrowPos=vec2(cos(arrowAngle),sin(arrowAngle))*arrowR;
+    vec2 dir=normalize(arrowPos);
+
+    // Arrow shape: elongated along flight direction
+    vec2 lp=uv-arrowPos;
+    float along=dot(lp,dir);
+    float perp=length(lp-dir*along);
+
+    // Arrowhead (triangle)
+    float head=smoothstep(.025,.0,perp*(3.+along*20.))*smoothstep(-.03,.0,along)*smoothstep(.02,.005,along);
+    // Shaft
+    float shaft=smoothstep(.003,.0,perp)*smoothstep(-.06,-.01,along)*smoothstep(.0,-.005,along);
+
+    float arrow=(head+shaft)*(1.-speed*.3); // fade as it flies out
+    float trail=exp(-perp*200.)*smoothstep(.0,-.08,along)*(1.-speed);
+
+    col+=GOLDS*arrow*.6;
+    col+=GOLDS*trail*.15;
+  }
+
+  // Central glow — the crossbow source
+  col+=GOLDS*exp(-r*12.)*.5;
+  col+=BRONZE*exp(-r*6.)*.2;
+
+  // Rotating energy at center
+  float cRays=pow(.5+.5*sin(a*8.+t*4.),4.)*exp(-r*16.);
+  col+=GOLDS*cRays*.3;
+
+  gl_FragColor=vec4(col,1.);
+}`,
+  },
+]
+
+/* ═══════════════════════════════════════════════════════════
    Shaders Page
    ═══════════════════════════════════════════════════════════ */
 
@@ -1362,7 +1825,7 @@ export default function Shaders() {
     <div>
       <PageHeader
         title="Shaders"
-        description="GLSL fragment shaders — 8 Buddhist, 6 Folk, 5 Đạo Mẫu Tứ Phủ, and 5 Vietnamese Nature. 24 shaders in jade, gold, and elemental palettes on dark."
+        description="GLSL fragment shaders — 8 Buddhist, 6 Folk, 5 Đạo Mẫu Tứ Phủ, 5 Vietnamese Nature, and 6 Nguồn Cội Âu Lạc. 30 shaders in jade, gold, bronze, and elemental palettes on dark."
       />
 
       <div className="space-y-12">
@@ -1418,6 +1881,22 @@ export default function Shaders() {
           Thiên Nhiên Việt Nam <span className="ml-2 text-sm font-normal text-[var(--text-muted)]">Vietnamese Nature</span>
         </h2>
         {natureShaders.map((s) => (
+          <section key={s.id}>
+            <div className="mb-4">
+              <h3 className="text-[var(--font-size-lg)] font-semibold text-[var(--text-primary)]">
+                {s.vi}
+                <span className="ml-2 text-sm font-normal text-[var(--text-muted)]">{s.en}</span>
+              </h3>
+              <p className="text-sm text-[var(--text-secondary)] mt-1">{s.desc}</p>
+            </div>
+            <ShaderCanvas frag={s.frag} />
+          </section>
+        ))}
+
+        <h2 className="text-[var(--font-size-xl)] font-semibold text-[var(--text-primary)] border-b border-[var(--border-default)] pb-2 mt-16">
+          Nguồn Cội Âu Lạc <span className="ml-2 text-sm font-normal text-[var(--text-muted)]">Ancient Vietnamese Origins</span>
+        </h2>
+        {nguonCoiShaders.map((s) => (
           <section key={s.id}>
             <div className="mb-4">
               <h3 className="text-[var(--font-size-lg)] font-semibold text-[var(--text-primary)]">
