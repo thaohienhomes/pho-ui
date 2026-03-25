@@ -10,6 +10,7 @@ import Icons from '@/pages/Icons'
 import Patterns from '@/pages/Patterns'
 import Motion from '@/pages/Motion'
 import Accessibility from '@/pages/Accessibility'
+import Shaders from '@/pages/Shaders'
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
               <Route path="/patterns" element={<Patterns />} />
               <Route path="/motion" element={<Motion />} />
               <Route path="/accessibility" element={<Accessibility />} />
+              <Route path="/shaders" element={<Shaders />} />
             </Routes>
           </div>
         </main>

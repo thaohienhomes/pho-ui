@@ -12,6 +12,7 @@ import {
   Menu,
   Smile,
   LayoutGrid,
+  Sparkles,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -25,6 +26,7 @@ const navItems = [
   { to: '/patterns', label: 'Patterns', icon: LayoutGrid },
   { to: '/motion', label: 'Motion', icon: Zap },
   { to: '/accessibility', label: 'Accessibility', icon: Accessibility },
+  { to: '/shaders', label: 'Shaders', icon: Sparkles },
 ]
 
 export function Sidebar() {
