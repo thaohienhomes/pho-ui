@@ -1,0 +1,214 @@
+@import 'tailwindcss';
+
+/* ═══ PHỞ UI DESIGN TOKENS ═══ */
+
+@theme inline {
+  --font-size-xs: 10px;
+  --font-size-sm: 12px;
+  --font-size-base: 15px;
+  --font-size-md: clamp(17px, 1.2vw + 13px, 19px);
+  --font-size-lg: clamp(20px, 1.5vw + 14px, 24px);
+  --font-size-xl: clamp(24px, 2vw + 14px, 30px);
+  --font-size-2xl: clamp(30px, 2.5vw + 16px, 38px);
+
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 20px;
+
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.5);
+  --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.7);
+
+  --ease-default: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --duration-slow: 350ms;
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+  --text-xs: 0.625rem;
+  --text-sm: 0.75rem;
+  --text-base: 0.9375rem;
+  --text-lg: 1.1875rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 1.875rem;
+  --text-3xl: 2.375rem;
+
+  --color-jade-50: #ecfdf5;
+  --color-jade-100: #d1fae5;
+  --color-jade-200: #a7f3d0;
+  --color-jade-300: #6ee7b7;
+  --color-jade-400: #34d399;
+  --color-jade-500: #059669;
+  --color-jade-600: #047857;
+  --color-jade-700: #065f46;
+  --color-jade-800: #064e3b;
+  --color-jade-900: #022c22;
+  --color-jade-950: #011a14;
+
+  --color-primary: #059669;
+  --color-primary-hover: #047857;
+  --color-primary-active: #065f46;
+  --color-primary-foreground: #ecfdf5;
+
+  --color-bg-base: #0a0a0a;
+  --color-bg-surface: #111111;
+  --color-bg-elevated: #1a1a1a;
+  --color-bg-hover: #1f1f1f;
+  --color-bg-active: #252525;
+
+  --color-border: #1e1e1e;
+  --color-border-hover: #2a2a2a;
+  --color-border-focus: #059669;
+  --color-border-active: #059669;
+
+  --color-text-primary: #f0f0f0;
+  --color-text-secondary: #a0a0a0;
+  --color-text-muted: #737373;
+  --color-text-disabled: #404040;
+
+  --color-code-bg: #111111;
+  --color-code-text: #f0f0f0;
+
+  --color-destructive: #dc2626;
+  --color-destructive-hover: #b91c1c;
+  --color-destructive-foreground: #fef2f2;
+
+  --color-ring: #059669;
+}
+
+:root {
+  --background: #0a0a0a;
+  --foreground: #f0f0f0;
+  --card: #111111;
+  --card-foreground: #f0f0f0;
+  --popover: #1a1a1a;
+  --popover-foreground: #f0f0f0;
+  --primary: #059669;
+  --primary-foreground: #ecfdf5;
+  --secondary: #1a1a1a;
+  --secondary-foreground: #a0a0a0;
+  --muted: #1a1a1a;
+  --muted-foreground: #737373;
+  --accent: #1f1f1f;
+  --accent-foreground: #f0f0f0;
+  --destructive: #dc2626;
+  --destructive-foreground: #fef2f2;
+  --border: #1e1e1e;
+  --input: #171717;
+  --ring: #059669;
+  --radius: 12px;
+
+  --jade: #059669;
+  --jade-light: #34d399;
+  --jade-dim: #065f46;
+  --jade-faint: rgba(5, 150, 105, 0.08);
+  --jade-glow: rgba(5, 150, 105, 0.15);
+  --jade-border: rgba(52, 211, 153, 0.15);
+
+  --bg-base: #0a0a0a;
+  --bg-surface: #111111;
+  --bg-elevated: #1a1a1a;
+  --bg-hover: #1f1f1f;
+  --bg-active: #252525;
+
+  --text-primary: #f0f0f0;
+  --text-secondary: #a0a0a0;
+  --text-muted: #737373;
+  --text-disabled: #404040;
+
+  --border-default: #1e1e1e;
+  --border-hover: #2a2a2a;
+  --border-focus: #059669;
+
+  --error: #dc2626;
+  --warning: #d97706;
+  --info: #2563eb;
+
+  --shadow-glow: 0 0 20px rgba(5, 150, 105, 0.15);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+button, a, input, textarea, select, [role="button"] {
+  transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+  transition-duration: var(--duration-fast);
+  transition-timing-function: var(--ease-default);
+}
+
+*, *::before, *::after {
+  border-color: var(--color-border);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.6;
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-base);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-hover);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+::selection {
+  background: var(--jade-faint);
+  color: var(--text-primary);
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fade-in 200ms ease-out;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 300ms var(--ease-default) both;
+}
