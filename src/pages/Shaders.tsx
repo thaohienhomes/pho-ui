@@ -800,6 +800,560 @@ void main(){
 ]
 
 /* ═══════════════════════════════════════════════════════════
+   5 Đạo Mẫu Tứ Phủ Shaders
+   ═══════════════════════════════════════════════════════════ */
+
+const daoMauShaders: { id: string; vi: string; en: string; desc: string; frag: string }[] = [
+
+  /* ─── 1. Tứ Phủ Thánh Mẫu ─── */
+  {
+    id: 'tu-phu-thanh-mau',
+    vi: 'Tứ Phủ Thánh Mẫu',
+    en: 'Four Palaces',
+    desc: 'Four cosmic domains rotating around center — Thiên (red), Nhạc (green), Thoải (white), Địa (yellow). Mandala rings with Mẫu Liễu Hạnh light at core.',
+    frag: `
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*u_resolution)/min(u_resolution.x,u_resolution.y);
+  float r=length(uv);
+  float a=atan(uv.y,uv.x);
+  float t=u_time*.15;
+
+  vec3 thien=vec3(.863,.149,.149);
+  vec3 nhac=vec3(.02,.588,.412);
+  vec3 thoai=vec3(.886,.91,.941);
+  vec3 dia=vec3(.918,.702,.031);
+
+  float ra=a+t;
+  float wT=pow(max(0.,sin(ra)),3.);
+  float wN=pow(max(0.,-cos(ra)),3.);
+  float wH=pow(max(0.,cos(ra)),3.);
+  float wD=pow(max(0.,-sin(ra)),3.);
+  float wSum=wT+wN+wH+wD+.001;
+  vec3 dc=(thien*wT+nhac*wN+thoai*wH+dia*wD)/wSum;
+
+  float m=0.;
+  m+=(1.-smoothstep(.0,.015,abs(r-.38)))*.8;
+  m+=(1.-smoothstep(.0,.012,abs(r-.28)))*.6;
+  m+=(1.-smoothstep(.0,.01,abs(r-.18)))*.5;
+
+  float petal=sin(a*8.+t*2.)*.5+.5;
+  petal*=smoothstep(.4,.15,r)*smoothstep(.05,.1,r);
+  m+=petal*.2;
+
+  float glow=exp(-r*2.5)*.5;
+
+  float center=exp(-r*10.);
+  vec3 mauLight=mix(GOLD,vec3(1.,.95,.85),.6);
+
+  vec3 col=BG;
+  col+=dc*(glow+m*.4);
+  col+=mauLight*center;
+  col+=dc*sin(r*25.-t*2.)*.04*exp(-r*3.);
+
+  gl_FragColor=vec4(col,1.);
+}`,
+  },
+
+  /* ─── 2. Hầu Đồng ─── */
+  {
+    id: 'hau-dong',
+    vi: 'Hầu Đồng',
+    en: 'Spirit Trance',
+    desc: 'Energy field of trance ritual — bursting waves, flowing fabric, flickering candles. Colors cycle red→green→white→yellow with drum-beat pulse.',
+    frag: `
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*u_resolution)/min(u_resolution.x,u_resolution.y);
+  float r=length(uv);
+  float a=atan(uv.y,uv.x);
+  float t=u_time;
+
+  float beat=pow(.5+.5*sin(t*4.),8.);
+  float pulse=1.+beat*.4;
+
+  vec3 cRed=vec3(.863,.149,.149);
+  vec3 cGreen=vec3(.02,.588,.412);
+  vec3 cWhite=vec3(.886,.91,.941);
+  vec3 cYellow=vec3(.918,.702,.031);
+
+  float cycle=mod(t*.15,4.);
+  vec3 cc=mix(cRed,cGreen,smoothstep(0.,1.,cycle));
+  cc=mix(cc,cWhite,smoothstep(1.,2.,cycle));
+  cc=mix(cc,cYellow,smoothstep(2.,3.,cycle));
+  cc=mix(cc,cRed,smoothstep(3.,4.,cycle));
+
+  float energy=0.;
+  for(int i=0;i<5;i++){
+    float fi=float(i);
+    float w=sin(r*18.-t*3.+fi*1.3)*.5+.5;
+    w*=exp(-r*(1.8+fi*.4));
+    energy+=w*(.4-fi*.06);
+  }
+  energy*=pulse;
+
+  float fabric=0.;
+  for(int i=0;i<4;i++){
+    float fi=float(i);
+    float y=uv.y+sin(uv.x*5.+t*1.5+fi*1.7)*.12+fi*.12-.2;
+    fabric+=exp(-y*y*30.)*.25;
+  }
+
+  float candles=0.;
+  for(int i=0;i<8;i++){
+    float fi=float(i);
+    vec2 cp=vec2(cos(fi*PI*.25),sin(fi*PI*.25))*.42;
+    float flicker=.7+.3*sin(t*10.+fi*4.);
+    candles+=exp(-dot(uv-cp,uv-cp)/.002)*flicker;
+  }
+
+  vec3 col=BG;
+  col+=cc*energy*.6;
+  col+=cc*fabric*.5;
+  col+=GOLD*candles*.4;
+  col+=cc*exp(-r*5.)*.3*pulse;
+
+  gl_FragColor=vec4(col,1.);
+}`,
+  },
+
+  /* ─── 3. Ngũ Hổ Ngũ Hành ─── */
+  {
+    id: 'ngu-ho-ngu-hanh',
+    vi: 'Ngũ Hổ Ngũ Hành',
+    en: 'Five Tigers',
+    desc: 'Five abstract tigers as aggressive claw-streaks in five directions — Kim (white), Mộc (green), Thuỷ (dark blue), Hoả (red), Thổ (yellow). Fierce pouncing energy.',
+    frag: `
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*u_resolution)/min(u_resolution.x,u_resolution.y);
+  float t=u_time*.4;
+  vec3 col=BG;
+
+  for(int i=0;i<5;i++){
+    float fi=float(i);
+    float angle=fi*TAU/5.;
+    vec2 dir=vec2(cos(angle),sin(angle));
+    vec2 nrm=vec2(-dir.y,dir.x);
+
+    vec3 tc=vec3(.9,.9,.92);
+    if(i==1) tc=vec3(.02,.588,.412);
+    if(i==2) tc=vec3(.08,.15,.35);
+    if(i==3) tc=vec3(.863,.149,.149);
+    if(i==4) tc=vec3(.918,.702,.031);
+
+    float phase=mod(t+fi*1.3,3.5);
+    float attack=smoothstep(0.,.6,phase)*smoothstep(2.5,1.,phase);
+
+    vec2 pos=dir*(.5-attack*.7);
+    vec2 dp=uv-pos;
+    float along=dot(dp,dir);
+
+    float streak=0.;
+    for(int j=0;j<3;j++){
+      float fj=float(j)-1.;
+      float pD=abs(dot(dp,nrm)-fj*.03);
+      float w=.007+.012*smoothstep(.0,-.2,along);
+      streak+=exp(-pD*pD/(w*w))*smoothstep(.25,.0,along)*smoothstep(-.4,-.05,along);
+    }
+
+    float trail=exp(-dot(dp,dp)/.015)*attack*.4;
+    col+=tc*(streak*attack*.7+trail);
+  }
+
+  gl_FragColor=vec4(col,1.);
+}`,
+  },
+
+  /* ─── 4. Khăn Phủ Diện ─── */
+  {
+    id: 'khan-phu-dien',
+    vi: 'Khăn Phủ Diện',
+    en: 'Ritual Veil',
+    desc: 'Flowing silk fabric — layered translucent red and gold veils drifting in ceremony. Backlit light filters through the cloth.',
+    frag: `
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*u_resolution)/min(u_resolution.x,u_resolution.y);
+  float t=u_time*.3;
+
+  vec3 red=vec3(.863,.149,.149);
+  vec3 gold2=vec3(.85,.65,.15);
+
+  vec3 fabricCol=vec3(0.);
+
+  for(int i=0;i<7;i++){
+    float fi=float(i);
+    float offset=fi*.07-.21;
+
+    float fold=sin(uv.x*4.+t*1.2+fi*.8)*.08
+              +sin(uv.x*7.-t*.8+fi*1.3)*.04
+              +sin(uv.x*12.+t*1.5+fi*2.)*.02;
+
+    float y=uv.y-fold-offset;
+    float layer=exp(-y*y*80.)*.5;
+    float backlit=exp(-y*y*40.)*.2;
+
+    vec3 lc=mix(red,gold2,mod(fi,2.));
+    lc*=.6+.4*(.5+.5*sin(uv.x*3.+t+fi));
+
+    fabricCol+=lc*(layer+backlit);
+  }
+
+  float ambient=exp(-uv.y*uv.y*3.)*.1;
+
+  vec3 col=BG;
+  col+=fabricCol;
+  col+=GOLD*ambient;
+
+  gl_FragColor=vec4(col,1.);
+}`,
+  },
+
+  /* ─── 5. Cửu Thiên Huyền Nữ ─── */
+  {
+    id: 'cuu-thien-huyen-nu',
+    vi: 'Cửu Thiên Huyền Nữ',
+    en: 'Nine Heavens',
+    desc: 'Cosmic feminine vortex — nine concentric heavenly rings, star field, swirling energy in purple, jade, and gold. Mystical atmosphere.',
+    frag: `
+float chash(vec2 p){
+  return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);
+}
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*u_resolution)/min(u_resolution.x,u_resolution.y);
+  float r=length(uv);
+  float a=atan(uv.y,uv.x);
+  float t=u_time*.1;
+
+  vec3 purple=vec3(.486,.227,.929);
+  vec3 jade2=vec3(.02,.588,.412);
+  vec3 gold3=vec3(.722,.525,.043);
+
+  float vortex=a+t+r*3.;
+
+  float rings=0.;
+  for(int i=0;i<9;i++){
+    float fi=float(i);
+    float rr=.05+fi*.045;
+    float opacity=1.-fi*.08;
+    float wobble=sin(vortex*3.+fi*1.2)*.01;
+    rings+=(1.-smoothstep(.0,.012,abs(r-rr-wobble)))*opacity;
+  }
+
+  vec2 starGrid=floor(gl_FragCoord.xy/3.);
+  float star=step(.97,chash(starGrid));
+  star*=.5+.5*sin(t*10.+chash(starGrid+.1)*TAU);
+
+  float swirl=sin(vortex*6.)*.5+.5;
+  swirl*=exp(-r*2.5);
+
+  vec3 ringCol=mix(purple,jade2,sin(r*15.+t)*.5+.5);
+  ringCol=mix(ringCol,gold3,exp(-r*6.));
+
+  vec3 col=BG;
+  col+=ringCol*rings*.5;
+  col+=purple*swirl*.3;
+  col+=vec3(.8,.85,1.)*star*.4;
+  col+=gold3*exp(-r*8.)*.5;
+  col+=purple*exp(-r*3.)*.15;
+
+  gl_FragColor=vec4(col,1.);
+}`,
+  },
+]
+
+/* ═══════════════════════════════════════════════════════════
+   5 Thiên Nhiên Việt Nam Shaders
+   ═══════════════════════════════════════════════════════════ */
+
+const natureShaders: { id: string; vi: string; en: string; desc: string; frag: string }[] = [
+
+  /* ─── 1. Mưa Phùn ─── */
+  {
+    id: 'mua-phun',
+    vi: 'Mưa Phùn',
+    en: 'Drizzle',
+    desc: 'Very fine diagonal rain, misty fog layers, subtle jade tint on grey. Micro-ripples at bottom — melancholic calm.',
+    frag: `
+float rhash(vec2 p){
+  return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);
+}
+void main(){
+  vec2 uv=gl_FragCoord.xy/u_resolution;
+  vec2 suv=(gl_FragCoord.xy-.5*u_resolution)/min(u_resolution.x,u_resolution.y);
+  float t=u_time;
+
+  float rain=0.;
+  for(int i=0;i<4;i++){
+    float fi=float(i);
+    float scale=80.+fi*30.;
+    float speed=(.8+fi*.2)*t;
+    vec2 grid=vec2(uv.x*scale+fi*17.+uv.y*8.,uv.y*scale+speed);
+    vec2 cell=floor(grid);
+    vec2 local=fract(grid);
+    float h=rhash(cell);
+    float dx=local.x-.5;
+    float dy=local.y-.5;
+    float drop=smoothstep(.015,.0,abs(dx-dy*.15))*smoothstep(.25,.0,abs(dy));
+    drop*=step(.7,h);
+    rain+=drop*(.25-fi*.04);
+  }
+
+  float fog=0.;
+  fog+=(sin(suv.x*2.+t*.1)*.5+.5)*.06;
+  fog+=(sin(suv.x*5.-t*.15+1.)*.5+.5)*.04;
+  fog*=smoothstep(.4,-.3,suv.y);
+
+  float ripple=0.;
+  float bottom=smoothstep(-.3,-.45,suv.y);
+  for(int i=0;i<6;i++){
+    float fi=float(i);
+    vec2 rp=vec2(rhash(vec2(fi,floor(t*.5+fi*.3)))*.8-.4,-.42);
+    float rd=length(suv-rp);
+    float age=fract(t*.5+fi*.17);
+    ripple+=(1.-smoothstep(.0,.008,abs(rd-age*.06)))*exp(-age*3.)*bottom;
+  }
+
+  vec3 col=BG;
+  col+=vec3(.06,.08,.07)*fog;
+  col+=vec3(.12,.13,.12)*rain;
+  col+=JADE*ripple*.3;
+
+  gl_FragColor=vec4(col,1.);
+}`,
+  },
+
+  /* ─── 2. Ruộng Bậc Thang ─── */
+  {
+    id: 'ruong-bac-thang',
+    vi: 'Ruộng Bậc Thang',
+    en: 'Rice Terraces',
+    desc: 'Sapa-inspired terraced rice paddies — curved layers in varying jade greens, water shimmer on flooded fields, gentle wind sway.',
+    frag: `
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*u_resolution)/min(u_resolution.x,u_resolution.y);
+  float t=u_time*.2;
+
+  vec3 terraceCol=vec3(0.);
+
+  for(int i=0;i<8;i++){
+    float fi=float(i);
+    float y=.35-fi*.1;
+
+    float curve=sin(uv.x*3.+fi*.8+1.)*.03+sin(uv.x*6.-fi*.5)*.015;
+    float edge=y+curve;
+
+    float layer=smoothstep(edge,edge-.005,uv.y)*smoothstep(edge-.095,edge-.04,uv.y);
+
+    float shimmer=sin(uv.x*40.+t*3.+fi*2.)*.5+.5;
+    shimmer*=sin(uv.x*25.-t*2.+fi)*.5+.5;
+    shimmer*=.12*smoothstep(edge-.01,edge-.05,uv.y);
+
+    vec3 green2=vec3(.015+fi*.008,.18+fi*.035,.12+fi*.015);
+
+    float sway=.8+.2*(sin(uv.x*2.+t+fi*.5)*.5+.5);
+    green2*=sway;
+
+    terraceCol+=green2*layer;
+    terraceCol+=JADE*shimmer;
+
+    float edgeLine=1.-smoothstep(.0,.006,abs(uv.y-edge));
+    terraceCol+=vec3(.03,.15,.1)*edgeLine*.4;
+  }
+
+  float sky=smoothstep(.38,.5,uv.y);
+  vec3 skyCol=mix(BG,vec3(.04,.07,.05),.5);
+
+  vec3 col=BG;
+  col+=terraceCol;
+  col+=skyCol*sky;
+
+  gl_FragColor=vec4(col,1.);
+}`,
+  },
+
+  /* ─── 3. Phố Cổ ─── */
+  {
+    id: 'pho-co',
+    vi: 'Phố Cổ',
+    en: 'Ancient Town',
+    desc: 'Hoi An lantern bokeh — warm red, yellow, orange circles swaying gently. Thu Bon river reflections below. Night atmosphere.',
+    frag: `
+float phash(vec2 p){
+  return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);
+}
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*u_resolution)/min(u_resolution.x,u_resolution.y);
+  float t=u_time*.3;
+
+  vec3 col=BG;
+
+  for(int i=0;i<20;i++){
+    float fi=float(i);
+    float h1=phash(vec2(fi,0.));
+    float h2=phash(vec2(fi,1.));
+    float h3=phash(vec2(fi,2.));
+
+    float x=h1*1.4-.7+sin(t*.3+fi*.5)*.03;
+    float y=h2*.4+.02;
+    float size=.03+h3*.05;
+
+    float sway=sin(t*.8+fi*2.)*.02;
+    vec2 lp=vec2(x+sway,y);
+    float d=length(uv-lp);
+
+    float flicker=.7+.3*sin(t*4.+fi*3.);
+    float bokeh=exp(-d*d/(size*size))*flicker;
+
+    vec3 lc=vec3(.863,.149,.149);
+    if(h3>.33) lc=vec3(.918,.702,.031);
+    if(h3>.66) lc=vec3(.9,.45,.1);
+
+    col+=lc*bokeh*.5;
+
+    float ry=-y-.06+sin(uv.x*15.+t*2.)*.01;
+    vec2 rp2=vec2(x+sway,ry);
+    float rd=length(uv-rp2);
+    float ref=exp(-rd*rd/(size*size*1.5))*flicker*.2;
+    col+=lc*ref;
+  }
+
+  float waterLine=smoothstep(.01,.0,abs(uv.y+.03));
+  col+=JADE*waterLine*.08;
+
+  col+=vec3(.12,.04,.01)*exp(-length(uv-vec2(0.,.15))*2.)*.15;
+
+  gl_FragColor=vec4(col,1.);
+}`,
+  },
+
+  /* ─── 4. Vịnh Hạ Long ─── */
+  {
+    id: 'vinh-ha-long',
+    vi: 'Vịnh Hạ Long',
+    en: 'Ha Long Bay',
+    desc: 'Limestone karst silhouettes layered with parallax depth, morning mist, jade-tinted fog, sun glow behind mountains, calm water below.',
+    frag: `
+float hhash(vec2 p){
+  return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);
+}
+float hnoise(vec2 p){
+  vec2 i=floor(p);vec2 f=fract(p);
+  f=f*f*(3.-2.*f);
+  float a=hhash(i);float b=hhash(i+vec2(1.,0.));
+  float c=hhash(i+vec2(0.,1.));float d=hhash(i+vec2(1.,1.));
+  return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);
+}
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*u_resolution)/min(u_resolution.x,u_resolution.y);
+  float t=u_time*.05;
+
+  vec2 sunPos=vec2(.2,.25);
+  float sunDist=length(uv-sunPos);
+  vec3 sunGlow=mix(GOLD,vec3(.9,.6,.3),sunDist*2.)*exp(-sunDist*3.);
+
+  vec3 col=BG+sunGlow*.3;
+
+  for(int i=0;i<5;i++){
+    float fi=float(i);
+    float depth=1.-fi*.18;
+    float scroll=t*(1.+fi*.3);
+
+    float mx=uv.x*2.+fi*3.+scroll;
+    float mountain=hnoise(vec2(mx,fi))*.3
+                  +hnoise(vec2(mx*2.,fi+5.))*.15
+                  +hnoise(vec2(mx*4.,fi+10.))*.07;
+    mountain=mountain-.12+fi*.06;
+
+    float peak=pow(hnoise(vec2(mx*1.5,fi+20.)),.5)*.15;
+    mountain+=peak;
+
+    float mask=step(uv.y,mountain);
+
+    float fog=exp(-fi*.6)*.3;
+    vec3 mountainCol=BG*depth+JADE*fog*.3;
+
+    col=mix(col,mountainCol,mask);
+  }
+
+  float mist=exp(-abs(uv.y-.05)*5.)*.15;
+  col+=JADE*mist;
+
+  float water=smoothstep(-.1,-.15,uv.y);
+  col=mix(col,col*.5+JADE*.08,water);
+  col+=JADE*exp(-abs(uv.y+.2+sin(uv.x*30.+t*10.)*.01)*20.)*.05*water;
+
+  gl_FragColor=vec4(col,1.);
+}`,
+  },
+
+  /* ─── 5. Tre Việt Nam ─── */
+  {
+    id: 'tre-viet-nam',
+    vi: 'Tre Việt Nam',
+    en: 'Bamboo Moon',
+    desc: 'Bamboo grove under moonlight — tall swaying stalks with nodes and leaves, light shafts filtering through on dark night sky.',
+    frag: `
+float bhash2(float p){
+  return fract(sin(p*127.1)*43758.5453);
+}
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*u_resolution)/min(u_resolution.x,u_resolution.y);
+  float t=u_time*.25;
+
+  vec2 moonPos=vec2(.3,.35);
+  float moonDist=length(uv-moonPos);
+  float moon=smoothstep(.06,.04,moonDist);
+  float moonGlow=exp(-moonDist*4.)*.3;
+
+  vec3 col=BG;
+  col+=vec3(.7,.75,.8)*moon;
+  col+=vec3(.3,.35,.4)*moonGlow;
+
+  float bamboo=0.;
+  float leafSum=0.;
+
+  for(int i=0;i<10;i++){
+    float fi=float(i);
+    float x=-.45+fi*.1+bhash2(fi)*.04;
+    float wind=sin(t+fi*.6)*.01+sin(t*1.4+fi*.4)*.006;
+    float sway=wind*(uv.y+.5);
+
+    float stalk=smoothstep(.007,.002,abs(uv.x-x-sway));
+    stalk*=smoothstep(-.5,-.45,uv.y);
+
+    float nodeY=mod(uv.y+bhash2(fi+10.)*.08+.5,.12)-.06;
+    float node=smoothstep(.012,.003,abs(uv.x-x-sway))
+              *smoothstep(.006,.001,abs(nodeY))
+              *step(-.45,uv.y);
+
+    float leaves=0.;
+    for(int j=0;j<3;j++){
+      float fj=float(j);
+      float ly=-.2+fj*.25+bhash2(fi+20.+fj)*.15;
+      vec2 lp=vec2(uv.x-x-sway,uv.y-ly);
+      float side=sign(bhash2(fi+30.+fj)-.5);
+      float leaf=smoothstep(.003,.0,abs(lp.y-lp.x*side*2.5))
+                *smoothstep(.06,.0,abs(lp.x))
+                *step(0.,lp.x*side);
+      leaves+=leaf;
+    }
+
+    float depth=.4+.6*bhash2(fi+5.);
+    bamboo+=(stalk+node*1.5)*depth;
+    leafSum+=leaves*.35*depth;
+  }
+
+  float shaft=exp(-abs(uv.x-.3)*3.)*.08;
+  shaft*=smoothstep(-.5,.3,uv.y);
+
+  col+=JADE*bamboo*.6;
+  col+=JADE*leafSum*.4;
+  col+=vec3(.25,.3,.2)*shaft;
+
+  gl_FragColor=vec4(col,1.);
+}`,
+  },
+]
+
+/* ═══════════════════════════════════════════════════════════
    Shaders Page
    ═══════════════════════════════════════════════════════════ */
 
@@ -808,7 +1362,7 @@ export default function Shaders() {
     <div>
       <PageHeader
         title="Shaders"
-        description="GLSL fragment shaders — 8 Buddhist-themed (sacred geometry, meditation, impermanence) and 6 Vietnamese folk-themed (lotus, bamboo, mist, water, lanterns, tessellation). Jade and gold on dark."
+        description="GLSL fragment shaders — 8 Buddhist, 6 Folk, 5 Đạo Mẫu Tứ Phủ, and 5 Vietnamese Nature. 24 shaders in jade, gold, and elemental palettes on dark."
       />
 
       <div className="space-y-12">
@@ -832,6 +1386,38 @@ export default function Shaders() {
           Dân Gian <span className="ml-2 text-sm font-normal text-[var(--text-muted)]">Folk</span>
         </h2>
         {folkShaders.map((s) => (
+          <section key={s.id}>
+            <div className="mb-4">
+              <h3 className="text-[var(--font-size-lg)] font-semibold text-[var(--text-primary)]">
+                {s.vi}
+                <span className="ml-2 text-sm font-normal text-[var(--text-muted)]">{s.en}</span>
+              </h3>
+              <p className="text-sm text-[var(--text-secondary)] mt-1">{s.desc}</p>
+            </div>
+            <ShaderCanvas frag={s.frag} />
+          </section>
+        ))}
+
+        <h2 className="text-[var(--font-size-xl)] font-semibold text-[var(--text-primary)] border-b border-[var(--border-default)] pb-2 mt-16">
+          Đạo Mẫu Tứ Phủ <span className="ml-2 text-sm font-normal text-[var(--text-muted)]">Mother Goddess</span>
+        </h2>
+        {daoMauShaders.map((s) => (
+          <section key={s.id}>
+            <div className="mb-4">
+              <h3 className="text-[var(--font-size-lg)] font-semibold text-[var(--text-primary)]">
+                {s.vi}
+                <span className="ml-2 text-sm font-normal text-[var(--text-muted)]">{s.en}</span>
+              </h3>
+              <p className="text-sm text-[var(--text-secondary)] mt-1">{s.desc}</p>
+            </div>
+            <ShaderCanvas frag={s.frag} />
+          </section>
+        ))}
+
+        <h2 className="text-[var(--font-size-xl)] font-semibold text-[var(--text-primary)] border-b border-[var(--border-default)] pb-2 mt-16">
+          Thiên Nhiên Việt Nam <span className="ml-2 text-sm font-normal text-[var(--text-muted)]">Vietnamese Nature</span>
+        </h2>
+        {natureShaders.map((s) => (
           <section key={s.id}>
             <div className="mb-4">
               <h3 className="text-[var(--font-size-lg)] font-semibold text-[var(--text-primary)]">
