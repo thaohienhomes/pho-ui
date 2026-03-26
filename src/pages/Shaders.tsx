@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { PageHeader } from '@/components/PageHeader'
 
 /* ═══════════════════════════════════════════════════════════
@@ -24,11 +24,36 @@ vec3 BG=vec3(.024,.031,.024);
    ═══════════════════════════════════════════════════════════ */
 
 function ShaderCanvas({ frag }: { frag: string }) {
-  const ref = useRef<HTMLCanvasElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [isVisible, setIsVisible] = useState(false)
 
+  // Track visibility via IntersectionObserver on the container
   useEffect(() => {
-    const canvas = ref.current
+    const el = containerRef.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      ([e]) => setIsVisible(e.isIntersecting),
+      { threshold: 0.1 },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+
+  // Create WebGL context only when visible; destroy on scroll-away
+  useEffect(() => {
+    const canvas = canvasRef.current
     if (!canvas) return
+
+    if (!isVisible) {
+      // Free the WebGL context when scrolled out of view
+      const existingGl = canvas.getContext('webgl')
+      if (existingGl) {
+        const ext = existingGl.getExtension('WEBGL_lose_context')
+        if (ext) ext.loseContext()
+      }
+      return
+    }
 
     const gl = canvas.getContext('webgl', { alpha: false })
     if (!gl) return
@@ -83,21 +108,12 @@ function ShaderCanvas({ frag }: { frag: string }) {
     const ro = new ResizeObserver(resize)
     ro.observe(canvas)
 
-    let visible = false
-    const io = new IntersectionObserver(
-      ([e]) => { visible = e.isIntersecting },
-      { threshold: 0.1 },
-    )
-    io.observe(canvas)
-
     let raf = 0
     const t0 = performance.now()
     const loop = () => {
-      if (visible) {
-        gl.uniform2f(uRes, canvas.width, canvas.height)
-        gl.uniform1f(uTime, (performance.now() - t0) / 1000)
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
-      }
+      gl.uniform2f(uRes, canvas.width, canvas.height)
+      gl.uniform1f(uTime, (performance.now() - t0) / 1000)
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
       raf = requestAnimationFrame(loop)
     }
     raf = requestAnimationFrame(loop)
@@ -105,20 +121,23 @@ function ShaderCanvas({ frag }: { frag: string }) {
     return () => {
       cancelAnimationFrame(raf)
       ro.disconnect()
-      io.disconnect()
       gl.deleteProgram(prog)
       gl.deleteShader(vs)
       gl.deleteShader(fs)
       gl.deleteBuffer(buf)
+      const ext = gl.getExtension('WEBGL_lose_context')
+      if (ext) ext.loseContext()
     }
-  }, [frag])
+  }, [frag, isVisible])
 
   return (
-    <canvas
-      ref={ref}
-      className="w-full rounded-[var(--radius-md)] border border-[var(--border-default)]"
-      style={{ aspectRatio: '16/9', background: '#060806' }}
-    />
+    <div ref={containerRef}>
+      <canvas
+        ref={canvasRef}
+        className="w-full rounded-[var(--radius-md)] border border-[var(--border-default)]"
+        style={{ aspectRatio: '16/9', background: '#060806' }}
+      />
+    </div>
   )
 }
 
