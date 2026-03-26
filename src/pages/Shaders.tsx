@@ -24,120 +24,140 @@ vec3 BG=vec3(.024,.031,.024);
    ═══════════════════════════════════════════════════════════ */
 
 function ShaderCanvas({ frag }: { frag: string }) {
-  const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [isVisible, setIsVisible] = useState(false)
+  const [failed, setFailed] = useState(false)
 
-  // Track visibility via IntersectionObserver on the container
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    const io = new IntersectionObserver(
-      ([e]) => setIsVisible(e.isIntersecting),
-      { threshold: 0.1 },
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [])
-
-  // Create WebGL context only when visible; destroy on scroll-away
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
 
-    if (!isVisible) {
-      // Free the WebGL context when scrolled out of view
-      const existingGl = canvas.getContext('webgl')
-      if (existingGl) {
-        const ext = existingGl.getExtension('WEBGL_lose_context')
-        if (ext) ext.loseContext()
-      }
-      return
-    }
+    /* ── State shared between observer callback and render loop ── */
+    let gl: WebGLRenderingContext | null = null
+    let prog: WebGLProgram | null = null
+    let vs: WebGLShader | null = null
+    let fs: WebGLShader | null = null
+    let buf: WebGLBuffer | null = null
+    let uRes: WebGLUniformLocation | null = null
+    let uTime: WebGLUniformLocation | null = null
+    let ro: ResizeObserver | null = null
+    let raf = 0
+    let inited = false
+    const t0 = performance.now()
 
-    const gl = canvas.getContext('webgl', { alpha: false })
-    if (!gl) return
-
-    const compile = (type: number, src: string): WebGLShader | null => {
-      const s = gl.createShader(type)
+    const compile = (ctx: WebGLRenderingContext, type: number, src: string): WebGLShader | null => {
+      const s = ctx.createShader(type)
       if (!s) return null
-      gl.shaderSource(s, src)
-      gl.compileShader(s)
-      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-        console.error('Shader compile error:', gl.getShaderInfoLog(s))
-        gl.deleteShader(s)
+      ctx.shaderSource(s, src)
+      ctx.compileShader(s)
+      if (!ctx.getShaderParameter(s, ctx.COMPILE_STATUS)) {
+        console.error('Shader compile error:', ctx.getShaderInfoLog(s))
+        ctx.deleteShader(s)
         return null
       }
       return s
     }
 
-    const vs = compile(gl.VERTEX_SHADER, VERT)
-    const fs = compile(gl.FRAGMENT_SHADER, PREFIX + '\n' + frag)
-    if (!vs || !fs) return
+    /* ── Lazy init: create WebGL context on first visibility ── */
+    const init = (): boolean => {
+      if (inited) return !!gl
+      inited = true
 
-    const prog = gl.createProgram()!
-    gl.attachShader(prog, vs)
-    gl.attachShader(prog, fs)
-    gl.linkProgram(prog)
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-      console.error('Program link error:', gl.getProgramInfoLog(prog))
-      return
+      gl = canvas.getContext('webgl', { alpha: false })
+      if (!gl) { setFailed(true); return false }
+
+      vs = compile(gl, gl.VERTEX_SHADER, VERT)
+      fs = compile(gl, gl.FRAGMENT_SHADER, PREFIX + '\n' + frag)
+      if (!vs || !fs) return false
+
+      prog = gl.createProgram()!
+      gl.attachShader(prog, vs)
+      gl.attachShader(prog, fs)
+      gl.linkProgram(prog)
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+        console.error('Program link error:', gl.getProgramInfoLog(prog))
+        return false
+      }
+
+      buf = gl.createBuffer()
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf)
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW)
+
+      const aPos = gl.getAttribLocation(prog, 'a_position')
+      uRes = gl.getUniformLocation(prog, 'u_resolution')
+      uTime = gl.getUniformLocation(prog, 'u_time')
+
+      gl.useProgram(prog)
+      gl.enableVertexAttribArray(aPos)
+      gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0)
+
+      const resize = () => {
+        if (!gl) return
+        const { width, height } = canvas.getBoundingClientRect()
+        const dpr = Math.min(window.devicePixelRatio, 2)
+        canvas.width = width * dpr
+        canvas.height = height * dpr
+        gl.viewport(0, 0, canvas.width, canvas.height)
+      }
+      resize()
+
+      ro = new ResizeObserver(resize)
+      ro.observe(canvas)
+      return true
     }
 
-    const buf = gl.createBuffer()
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf)
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW)
-
-    const aPos = gl.getAttribLocation(prog, 'a_position')
-    const uRes = gl.getUniformLocation(prog, 'u_resolution')
-    const uTime = gl.getUniformLocation(prog, 'u_time')
-
-    gl.useProgram(prog)
-    gl.enableVertexAttribArray(aPos)
-    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0)
-
-    const resize = () => {
-      const { width, height } = canvas.getBoundingClientRect()
-      const dpr = Math.min(window.devicePixelRatio, 2)
-      canvas.width = width * dpr
-      canvas.height = height * dpr
-      gl.viewport(0, 0, canvas.width, canvas.height)
-    }
-    resize()
-
-    const ro = new ResizeObserver(resize)
-    ro.observe(canvas)
-
-    let raf = 0
-    const t0 = performance.now()
+    /* ── Render loop: runs only while visible ── */
     const loop = () => {
-      gl.uniform2f(uRes, canvas.width, canvas.height)
-      gl.uniform1f(uTime, (performance.now() - t0) / 1000)
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+      if (gl) {
+        gl.uniform2f(uRes, canvas.width, canvas.height)
+        gl.uniform1f(uTime, (performance.now() - t0) / 1000)
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+      }
       raf = requestAnimationFrame(loop)
     }
-    raf = requestAnimationFrame(loop)
+
+    /* ── IntersectionObserver: pause/resume animation ── */
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) {
+          if (init() && !raf) raf = requestAnimationFrame(loop)
+        } else {
+          if (raf) { cancelAnimationFrame(raf); raf = 0 }
+        }
+      },
+      { threshold: 0.1 },
+    )
+    io.observe(canvas)
 
     return () => {
-      cancelAnimationFrame(raf)
-      ro.disconnect()
-      gl.deleteProgram(prog)
-      gl.deleteShader(vs)
-      gl.deleteShader(fs)
-      gl.deleteBuffer(buf)
-      const ext = gl.getExtension('WEBGL_lose_context')
-      if (ext) ext.loseContext()
+      if (raf) cancelAnimationFrame(raf)
+      io.disconnect()
+      if (ro) ro.disconnect()
+      if (gl) {
+        if (prog) gl.deleteProgram(prog)
+        if (vs) gl.deleteShader(vs)
+        if (fs) gl.deleteShader(fs)
+        if (buf) gl.deleteBuffer(buf)
+      }
     }
-  }, [frag, isVisible])
+  }, [frag])
+
+  if (failed) {
+    return (
+      <div
+        className="w-full flex items-center justify-center rounded-[var(--radius-md)] border border-[var(--border-default)] text-[var(--text-muted)]"
+        style={{ aspectRatio: '16/9', background: '#060806' }}
+      >
+        WebGL unavailable
+      </div>
+    )
+  }
 
   return (
-    <div ref={containerRef}>
-      <canvas
-        ref={canvasRef}
-        className="w-full rounded-[var(--radius-md)] border border-[var(--border-default)]"
-        style={{ aspectRatio: '16/9', background: '#060806' }}
-      />
-    </div>
+    <canvas
+      ref={canvasRef}
+      className="w-full rounded-[var(--radius-md)] border border-[var(--border-default)]"
+      style={{ aspectRatio: '16/9', background: '#060806' }}
+    />
   )
 }
 
